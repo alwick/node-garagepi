@@ -9,6 +9,7 @@ var io = require('socket.io')(server);
 var startTakingSnaps = true;
 var Raspistill = require('node-raspistill').Raspistill;
 var fs = require('fs');
+var fsSync = require('fs-sync');
 
 require('console-stamp')(console, '[HH:MM:ss]');
 
@@ -19,21 +20,22 @@ app.engine('html', require('ejs').renderFile);
 app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use(express.static(path.join(__dirname, 'public')));
+
+app.use(express.static(path.join(__dirname, '/public')));
 
 app.get('/', function(req, res) {
     res.render('index.html');
 });
 
 var state = 'closed';
-app.get('/api/clickbutton', function(req, res) {
+app.get('/api/clickbutton1', function(req, res) {
     state = state == 'closed' ? 'open' : 'closed';
+    processRequest(res, 7, 4);
+});
 
-    // hardcode to closed for now until reed switch
-    state = 'closed';
-    res.setHeader('Content-Type', 'application/json');
-    res.end(state);
-    outputSequence(7, '10', 1000);
+app.get('/api/clickbutton2', function(req, res) {
+    state = state == 'closed' ? 'open' : 'closed';
+    processRequest(res, 8, 17);
 });
 
 app.get('/api/status', function(req, res) {
@@ -42,9 +44,14 @@ app.get('/api/status', function(req, res) {
     console.log('returning state: ' + state);
 });
 
-function outputSequence(pin, seq, timeout) {
-    var gpio = new GPIO(4, 'out');
-    gpioWrite(gpio, pin, seq, timeout);
+function processRequest(res, pin, gpioPin) {
+    // hardcode to closed for now until reed switch
+    state = 'closed';
+    res.setHeader('Content-Type', 'application/json');
+    res.end(state);
+
+    var gpio = new GPIO(gpioPin, 'out');
+    gpioWrite(gpio, pin, '10', 1000);
 }
 
 function gpioWrite(gpio, pin, seq, timeout) {
@@ -65,17 +72,28 @@ function gpioWrite(gpio, pin, seq, timeout) {
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
-    var err = new Error('Not Found');
+    var err = new Error('Not Found: ' + req.url);
     err.status = 404;
     next(err);
 });
 
 var takePhoto = function() {
-    const photoDir = '/media/images/';
+    const rootPhotoDir = '/media/images/';
+    const rootServerDir = '/mnt/mybooklive/media/photos/garage/';
+
     const d = new Date();
-    const photoFile = (d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
-        ('0' + d.getDate()).slice(-2)) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) +
-        ':' + ('0' + d.getSeconds()).slice(-2);
+    let photoDir = (d.getFullYear() + '/' +
+        ('0' + (d.getMonth() + 1)).slice(-2) + '/' +
+        ('0' + d.getDate()).slice(-2)) + '/';
+    const photoFile = ('0' + d.getHours()).slice(-2) + '-' +
+        ('0' + d.getMinutes()).slice(-2) + '-' +
+        ('0' + d.getSeconds()).slice(-2);
+
+    const serverDir = rootServerDir + photoDir;
+    photoDir = rootPhotoDir + photoDir;
+
+    // Make sure photo dir exists
+    fsSync.mkdir(photoDir);
 
     var camera = new Raspistill({
         mode: 'photo',
@@ -84,11 +102,23 @@ var takePhoto = function() {
         width: 640,
         height: 480,
         quality: 80,
+        verticalFlip: true,
         encoding: 'jpg'
     });
 
     camera.takePhoto().then(function(photo) {
        console.log('File saved: ' + photoFile);
+
+       const oldfile = photoDir + photoFile + '.jpg';
+       const newfile = path.join(__dirname, '/public/images/garage.jpg');
+
+       console.log('Overwriting main photo: ' + newfile);
+       console.log('Overwrite success: ' + fsSync.copy(oldfile, newfile, {force:true}) );
+
+       console.log('Copy files to server');
+       fsSync.copy(photoDir, serverDir, {force:true});
+
+       console.log('Remove local photos success: ' + fsSync.remove(oldfile) );
 
        if( startTakingSnaps ) {
            takeSnaps();

@@ -9,7 +9,7 @@
   <title>Garage Door Opener</title>
   <style type="text/css">
 
-    button {
+    .container {
       margin: auto;
       position: absolute;
       width: 70%;
@@ -23,7 +23,16 @@
       color: black;
       opacity: 0.2;
     }
- 
+
+    button {
+      height: 50%;
+      font-size: 30pt;
+      font-weight: bold;
+      color: black;
+      position:relative;
+      width: 100%;
+    }
+
     body#background {
       background: url('/images/garage.jpg') no-repeat 50% 50% fixed; 
       background-size: cover;
@@ -36,34 +45,45 @@
 </head>
 
 <body id="background">
-    <button id="button">Garage Door</button>
-
+  <div class="container">
+      <button id="button1">Large Garage Door</button>
+      <button id="button2">Small Garage Door</button>
+  </div>
 </body>
 
 <script src="/javascripts/jquery-2.1.1.min.js"></script>
 <script>
   $(document).ready(function() {
-    $('#button').on('click', function() {
-      console.log('clicked');
-      $.getJSON("/api/clickbutton", function(data) {
-        console.log('clickbutton done:', data);
+    $('#button1').on('click', function() {
+          console.log('clicked1');
+          $.getJSON("/api/clickbutton1", function(data) {
+              console.log('clickbutton1 done:', data);
+          });
       });
+    $('#button2').on('click', function() {
+        console.log('clicked2');
+        $.getJSON("/api/clickbutton2", function(data) {
+            console.log('clickbutton2 done:', data);
+        });
     });
   });
 </script>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-  var socket = io();
-  socket.on('snapshot', function(status){
-    var t = new Date().getTime();
-    var url = "url(/images/garage.jpg?t=" + t + ") no-repeat 50% 50% fixed";
-    console.log('load new snapshot: ' + url);
-    $("#background").css("background", url);
-    $("#background").css("background-size", "cover");
-    $("#background").css("-moz-background-size", "cover");
-    $("#background").css("-webkit-background-size", "cover");
-  });
+    const reloadBackground = function() {
+        setTimeout(function () {
+            var t = new Date().getTime();
+            var url = "url(/images/garage.jpg?t=" + t + ") no-repeat 50% 50% fixed";
+            console.log('load new snapshot: ' + url);
+            $("#background").css("background", url);
+            $("#background").css("background-size", "cover");
+            $("#background").css("-moz-background-size", "cover");
+            $("#background").css("-webkit-background-size", "cover");
+
+            reloadBackground();
+        }, 15000);
+    }
 </script>
 
 
